@@ -16,7 +16,7 @@ export function useTranslation() {
   if (!lingoRef.current && typeof window !== 'undefined' && LINGO_API_KEY) {
     lingoRef.current = new LingoDotDevEngine({
       apiKey: LINGO_API_KEY,
-      apiUrl: `${window.location.origin}/api/lingo`,
+      apiUrl: import.meta.env.DEV ? `${window.location.origin}/api/lingo` : 'https://engine.lingo.dev',
     });
   }
 
