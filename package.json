@@ -12,7 +12,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
     "clsx": "^2.1.1",
+    "diff-match-patch": "^1.0.5",
     "framer-motion": "^12.4.7",
+    "lingo.dev": "^0.125.0",
     "lucide-react": "^0.562.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

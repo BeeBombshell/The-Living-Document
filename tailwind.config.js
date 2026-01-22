@@ -8,11 +8,14 @@ export default {
     extend: {
       colors: {
         pastel: {
-          pink: '#ffb7b2',
-          purple: '#b28dff',
-          blue: '#a2d2ff',
-          green: '#b2e2f2',
-          yellow: '#fdfd96',
+          pink: '#ffd1dc',
+          purple: '#e0c3fc',
+          blue: '#caf0f8',
+          green: '#d8f3dc',
+          yellow: '#fcf6bd',
+          peach: '#ffd8be',
+          mint: '#e0faf1',
+          lavender: '#f1e4f3',
         }
       },
       animation: {
