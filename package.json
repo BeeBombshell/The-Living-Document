@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.36.3",
     "clsx": "^2.1.1",
     "diff-match-patch": "^1.0.5",
     "framer-motion": "^12.4.7",

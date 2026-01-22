@@ -21,6 +21,7 @@ export function EditorPanel({
     isLastEdited,
     isUpdating,
     isTranslating,
+    progress,
     placeholder = "Start typing...",
     accentColor = "pink"
 }) {
@@ -147,6 +148,29 @@ export function EditorPanel({
                     )}
                 </div>
             </div>
+
+            {/* Progress Bar */}
+            <AnimatePresence>
+                {isTranslating && (
+                    <motion.div
+                        initial={{ scaleX: 0, opacity: 0 }}
+                        animate={{ scaleX: 1, opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="h-1 bg-white/5 relative z-20"
+                    >
+                        <motion.div
+                            className={cn(
+                                "h-full transition-all duration-300",
+                                accentColor === 'pink' ? 'bg-pastel-pink' :
+                                    accentColor === 'blue' ? 'bg-pastel-blue' :
+                                        accentColor === 'purple' ? 'bg-pastel-purple' : 'bg-pastel-green'
+                            )}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Editor Area */}
             <motion.div

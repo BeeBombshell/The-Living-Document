@@ -23,18 +23,34 @@ function App() {
     { label: 'Arabic', value: 'ar' },
   ]);
 
-  const { isTranslating, latency, debouncedTranslate } = useTranslation();
+  const [fastMode, setFastMode] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchContents, setBatchContents] = useState({}); // { locale: text }
+  const [batchLocales] = useState(['es', 'fr', 'ja', 'ar']);
+
+  const { isTranslating, latency, progress, translate, batchTranslate, debouncedTranslate, debouncedBatchTranslate } = useTranslation();
 
   const handleLeftChange = useCallback((text) => {
     setLeftContent(text);
     setLastEdited('left');
 
-    debouncedTranslate(text, rightLang, (translatedText) => {
-      setRightContent(translatedText);
-      setIsUpdating({ left: false, right: true });
-      setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
-    }, leftLang);
-  }, [leftLang, rightLang, debouncedTranslate]);
+    const opts = { sourceLocale: leftLang, fast: fastMode };
+
+    if (batchMode) {
+      debouncedBatchTranslate(text, batchLocales, (results) => {
+        setBatchContents(results);
+        if (results[rightLang]) {
+          setRightContent(results[rightLang]);
+        }
+      }, opts);
+    } else {
+      debouncedTranslate(text, rightLang, (translatedText) => {
+        setRightContent(translatedText);
+        setIsUpdating({ left: false, right: true });
+        setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
+      }, opts);
+    }
+  }, [leftLang, rightLang, debouncedTranslate, debouncedBatchTranslate, batchMode, batchLocales, fastMode]);
 
   const handleRightChange = useCallback((text) => {
     setRightContent(text);
@@ -44,35 +60,56 @@ function App() {
       setLeftContent(translatedText);
       setIsUpdating({ left: true, right: false });
       setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
-    }, rightLang);
-  }, [leftLang, rightLang, debouncedTranslate]);
+    }, { sourceLocale: rightLang, fast: fastMode });
+  }, [leftLang, rightLang, debouncedTranslate, fastMode]);
 
   const handleScenarioSelect = (content) => {
     setLeftContent(content);
     setLastEdited('left');
-    debouncedTranslate(content, rightLang, (translatedText) => {
-      setRightContent(translatedText);
-      setIsUpdating({ left: false, right: true });
-      setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
-    }, leftLang);
-  };
+    const opts = { sourceLocale: leftLang, fast: fastMode };
 
-  // Re-translate when languages change
-  useEffect(() => {
-    if (lastEdited === 'left' && leftContent) {
-      debouncedTranslate(leftContent, rightLang, (translatedText) => {
+    if (batchMode) {
+      batchTranslate(content, batchLocales, (results) => {
+        setBatchContents(results);
+        if (results[rightLang]) {
+          setRightContent(results[rightLang]);
+        }
+      }, opts);
+    } else {
+      translate(content, rightLang, (translatedText) => {
         setRightContent(translatedText);
         setIsUpdating({ left: false, right: true });
         setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
-      }, leftLang);
+      }, opts);
+    }
+  };
+
+  // Re-translate when languages change or mode changes
+  useEffect(() => {
+    if (lastEdited === 'left' && leftContent) {
+      const opts = { sourceLocale: leftLang, fast: fastMode };
+      if (batchMode) {
+        debouncedBatchTranslate(leftContent, batchLocales, (results) => {
+          setBatchContents(results);
+          if (results[rightLang]) {
+            setRightContent(results[rightLang]);
+          }
+        }, opts);
+      } else {
+        debouncedTranslate(leftContent, rightLang, (translatedText) => {
+          setRightContent(translatedText);
+          setIsUpdating({ left: false, right: true });
+          setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
+        }, opts);
+      }
     } else if (lastEdited === 'right' && rightContent) {
       debouncedTranslate(rightContent, leftLang, (translatedText) => {
         setLeftContent(translatedText);
         setIsUpdating({ left: true, right: false });
         setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
-      }, rightLang);
+      }, { sourceLocale: rightLang, fast: fastMode });
     }
-  }, [leftLang, rightLang, debouncedTranslate]);
+  }, [leftLang, rightLang, debouncedTranslate, debouncedBatchTranslate, fastMode, batchMode, batchTranslate, batchLocales]);
 
   const handleAddLanguage = useCallback((name, code) => {
     if (!name || !code) return;
@@ -86,13 +123,25 @@ function App() {
   // Initial translation for default text
   useEffect(() => {
     if (leftContent && !rightContent) {
-      debouncedTranslate(leftContent, rightLang, (translatedText) => {
+      translate(leftContent, rightLang, (translatedText) => {
         setRightContent(translatedText);
         setIsUpdating({ left: false, right: true });
         setTimeout(() => setIsUpdating({ left: false, right: false }), 2000);
-      }, leftLang);
+      }, { sourceLocale: leftLang, fast: fastMode });
     }
   }, []);
+
+  const toggleBatchMode = () => {
+    setBatchMode(!batchMode);
+    if (!batchMode && leftContent) {
+      batchTranslate(leftContent, batchLocales, (results) => {
+        setBatchContents(results);
+        if (results[rightLang]) {
+          setRightContent(results[rightLang]);
+        }
+      }, { sourceLocale: leftLang, fast: fastMode });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white/90 selection:bg-pastel-blue/30 p-4 md:p-8 flex flex-col items-center">
@@ -111,16 +160,38 @@ function App() {
           <span className="bg-gradient-to-r from-pastel-pink to-pastel-purple bg-clip-text text-transparent">Write</span> in one language.<br />
           <span className="bg-gradient-to-r from-pastel-blue to-pastel-green bg-clip-text text-transparent">Read</span> in another.
         </h1>
-        <p className="text-lg text-white/40 max-w-2xl mx-auto font-medium">
+        <p className="text-lg text-white/40 max-w-2xl mx-auto font-medium mb-8">
           The collaborative editor that preserves the soul of your words across borders.
           Powered by <span className="text-pastel-pink font-bold">Lingo.dev</span>
         </p>
+
+        {/* Mode Toggles */}
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <button
+            onClick={() => setFastMode(!fastMode)}
+            className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${fastMode
+              ? 'bg-pastel-blue/10 border-pastel-blue/40 text-pastel-blue'
+              : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'
+              }`}
+          >
+            {fastMode ? '⚡ Fast Mode Active' : '✨ Quality Mode'}
+          </button>
+          <button
+            onClick={toggleBatchMode}
+            className={`px-4 py-2 rounded-xl border text-xs font-bold uppercase tracking-widest transition-all ${batchMode
+              ? 'bg-pastel-purple/10 border-pastel-purple/40 text-pastel-purple'
+              : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60'
+              }`}
+          >
+            {batchMode ? '🌍 Multi-Language Active' : '🔄 Single Translation'}
+          </button>
+        </div>
       </header>
 
       {/* Main Translation Interface */}
       <main className="max-w-7xl w-full flex flex-col gap-6">
-        <div className="flex flex-col md:flex-row gap-6 items-stretch">
-          <div className="flex-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 items-stretch transition-all duration-500">
+          <div className={batchMode ? "lg:col-span-2" : "flex-1"}>
             <EditorPanel
               content={leftContent}
               onChange={handleLeftChange}
@@ -130,33 +201,58 @@ function App() {
               onOpenModal={() => setIsModalOpen(true)}
               isLastEdited={lastEdited === 'left'}
               isUpdating={isUpdating.left}
-              isTranslating={isTranslating}
+              isTranslating={isTranslating && lastEdited === 'right'}
+              progress={progress}
               placeholder="Start typing in English..."
               accentColor="pink"
             />
           </div>
 
-          <div className="flex-1">
-            <EditorPanel
-              content={rightContent}
-              onChange={handleRightChange}
-              language={rightLang}
-              onLanguageChange={setRightLang}
-              languages={languages}
-              onOpenModal={() => setIsModalOpen(true)}
-              isLastEdited={lastEdited === 'right'}
-              isUpdating={isUpdating.right}
-              isTranslating={isTranslating}
-              placeholder="Traducción automática..."
-              accentColor="blue"
-            />
-          </div>
+          {!batchMode ? (
+            <div className="flex-1">
+              <EditorPanel
+                content={rightContent}
+                onChange={handleRightChange}
+                language={rightLang}
+                onLanguageChange={setRightLang}
+                languages={languages}
+                onOpenModal={() => setIsModalOpen(true)}
+                isLastEdited={lastEdited === 'right'}
+                isUpdating={isUpdating.right}
+                isTranslating={isTranslating && lastEdited === 'left'}
+                progress={progress}
+                placeholder="Traducción automática..."
+                accentColor="blue"
+              />
+            </div>
+          ) : (
+            <>
+              {batchLocales.map((locale, index) => (
+                <div key={locale} className="flex-1">
+                  <EditorPanel
+                    content={batchContents[locale] || ''}
+                    onChange={() => { }} // Batch panels are read-only for now
+                    language={locale}
+                    onLanguageChange={() => { }}
+                    languages={languages}
+                    onOpenModal={() => { }}
+                    isLastEdited={false}
+                    isUpdating={false}
+                    isTranslating={isTranslating && lastEdited === 'left'}
+                    progress={progress}
+                    placeholder="Translating..."
+                    accentColor={['blue', 'purple', 'green', 'pink'][index % 4]}
+                  />
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {/* Status Bar */}
         <div className="flex items-center justify-between px-4 py-2 bg-white/[0.02] border border-white/5 rounded-xl">
           <div className="flex items-center gap-4">
-            <LatencyBadge latency={latency} isTranslating={isTranslating} />
+            <LatencyBadge latency={latency} isTranslating={isTranslating} fastMode={fastMode} />
           </div>
           <div className="text-[10px] uppercase tracking-wider text-white/20 font-bold flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-pastel-green animate-pulse" />

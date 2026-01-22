@@ -6,63 +6,102 @@ const LINGO_API_KEY = import.meta.env.VITE_LINGO_API_KEY;
 export function useTranslation() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [latency, setLatency] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState(null);
   const timeoutRef = useRef(null);
+  const batchTimeoutRef = useRef(null);
   
   const lingoRef = useRef(null);
 
-  if (!lingoRef.current && typeof window !== 'undefined') {
+  if (!lingoRef.current && typeof window !== 'undefined' && LINGO_API_KEY) {
     lingoRef.current = new LingoDotDevEngine({
       apiKey: LINGO_API_KEY,
       apiUrl: `${window.location.origin}/api/lingo`,
     });
   }
 
-  const translate = useCallback(async (text, targetLocale, onComplete, sourceLocale = 'en') => {
-    if (!text || text.trim() === '') {
-      onComplete('');
-      return;
-    }
-
-    if (!LINGO_API_KEY) {
-      setError('API Key Missing');
-      return;
-    }
-
+  const translate = useCallback(async (text, targetLocale, onComplete, options = {}) => {
+    const { sourceLocale = 'en', fast = false } = options;
+    if (!text || text.trim() === '') return;
     setIsTranslating(true);
+    setProgress(0);
     const startTime = performance.now();
-
     try {
-      const translatedText = await lingoRef.current.localizeText(text, {
-        sourceLocale,
-        targetLocale,
-      });
-      
-      const endTime = performance.now();
-      setLatency(Math.round(endTime - startTime));
+        console.log('translate entry:', { textLength: text?.length, targetLocale, sourceLocale });
+      const translatedText = await lingoRef.current.localizeText(
+        text, 
+        { sourceLocale, targetLocale, fast },
+        (p) => setProgress(Math.round(p * 100))
+      );
+      setLatency(Math.round(performance.now() - startTime));
       setIsTranslating(false);
+      setProgress(100);
       onComplete(translatedText);
     } catch (err) {
       console.error('Translation error:', err);
-      setError(err.message);
       setIsTranslating(false);
     }
   }, []);
 
-  const debouncedTranslate = useCallback((text, targetLocale, onComplete, sourceLocale) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+  const batchTranslate = useCallback(async (text, targetLocales, onComplete, options = {}) => {
+    const { sourceLocale = 'en', fast = false } = options;
+    if (!text || text.trim() === '' || !targetLocales.length) return;
+    
+    setIsTranslating(true);
+    setProgress(0);
+    const startTime = performance.now();
 
+    try {
+      console.log('Calling batchLocalizeText with:', { textLength: text.length, sourceLocale, targetLocales, fast });
+      
+      // Use the SDK's batchLocalizeText directly
+      const results = await lingoRef.current.batchLocalizeText(
+        text,
+        {
+            sourceLocale,
+            targetLocales,
+            fast
+        }
+      );
+
+      // Map array results back to a locale object
+      const resultMap = {};
+      targetLocales.forEach((locale, index) => {
+        resultMap[locale] = results[index];
+      });
+
+      setLatency(Math.round(performance.now() - startTime));
+      setIsTranslating(false);
+      setProgress(100);
+      onComplete(resultMap);
+    } catch (err) {
+      console.error('Batch translation error:', err);
+      setIsTranslating(false);
+    }
+  }, []);
+
+  const debouncedTranslate = useCallback((text, targetLocale, onComplete, options) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      translate(text, targetLocale, onComplete, sourceLocale);
+      translate(text, targetLocale, onComplete, options);
     }, 500);
   }, [translate]);
+
+  const debouncedBatchTranslate = useCallback((text, targetLocales, onComplete, options) => {
+    if (batchTimeoutRef.current) clearTimeout(batchTimeoutRef.current);
+    batchTimeoutRef.current = setTimeout(() => {
+      batchTranslate(text, targetLocales, onComplete, options);
+    }, 500);
+  }, [batchTranslate]);
 
   return {
     isTranslating,
     latency,
+    progress,
     error,
-    debouncedTranslate
+    translate,
+    batchTranslate,
+    debouncedTranslate,
+    debouncedBatchTranslate
   };
 }
