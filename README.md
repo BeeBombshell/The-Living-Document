@@ -1,6 +1,7 @@
-# 🌟 The Living Document
+# 🌟 The Living Document | [Live](https://living-document.beebombshell.com/)
 
 ![The Living Document](https://storage.googleapis.com/bhavya-testing.appspot.com/assets/living-document-hero.png)
+
 
 > **"Write in one language. Read in another. Instantly."**
 

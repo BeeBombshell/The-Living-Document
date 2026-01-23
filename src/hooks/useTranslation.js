@@ -23,6 +23,17 @@ export function useTranslation() {
   const translate = useCallback(async (text, targetLocale, onComplete, options = {}) => {
     const { sourceLocale = 'en', fast = false } = options;
     if (!text || text.trim() === '') return;
+
+    // Check Cache
+    const cacheKey = `lingo_${fast ? 'fast_' : ''}${sourceLocale}_${targetLocale}_${text}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      console.log('Cache hit:', cacheKey);
+      onComplete(cached);
+      setLatency(0); // Instant
+      return;
+    }
+
     setIsTranslating(true);
     setProgress(0);
     const startTime = performance.now();
@@ -33,6 +44,16 @@ export function useTranslation() {
         { sourceLocale, targetLocale, fast },
         (p) => setProgress(Math.round(p * 100))
       );
+      
+      // Update Cache
+      try {
+        // Simple heuristic: don't cache very short or very long texts if concerned about space, 
+        // but for "default text" it's fine.
+        localStorage.setItem(cacheKey, translatedText);
+      } catch (e) {
+        console.warn('LocalStorage full, cannot cache translation');
+      }
+
       setLatency(Math.round(performance.now() - startTime));
       setIsTranslating(false);
       setProgress(100);
